@@ -1,5 +1,5 @@
 {
-  "name": "${PROJECT_NAME}",
+  "name": "im-front-sdk-ts",
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
