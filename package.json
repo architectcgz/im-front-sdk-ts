@@ -4,11 +4,21 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "build.weblib": "cross-env NODE_ENV=production platform=web webpack --mode=production --config ./build/webpack.lib.config.js",
+    "build.unilib": "cross-env NODE_ENV=production platform=uni webpack --mode=production --config ./build/webpack.lib.config.js",
+    "build.wxlib": "cross-env NODE_ENV=production platform=wx webpack --mode=production --config ./build/webpack.lib.config.js"
   },
-  "dependencies": {},
   "devDependencies": {
-    "typescript": "^5.5.3"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
   },
-  "private": true
+  "private": true,
+  "dependencies": {
+    "axios": "^1.7.9",
+    "long": "^5.3.0",
+    "uuid": "^11.0.5",
+    "whatwg-fetch": "^3.6.20",
+    "wxapp-fetch": "^0.1.1"
+  }
 }
