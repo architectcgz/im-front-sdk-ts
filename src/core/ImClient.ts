@@ -29,7 +29,7 @@ export enum TimeUnit{
     Millisecond = 1,
 }
 const loginTimeout = 10 * TimeUnit.Second;
-const heartbeatInterval = 20 * TimeUnit.Second;
+const heartbeatInterval = 50 * TimeUnit.Second;
 
 
 export class ImClient{
@@ -65,6 +65,21 @@ export class ImClient{
 
     constructor(private imTimeCalibrator: ImTimeCalibrator){
     
+    }
+    destroy() {
+        // 关闭 WebSocket 连接
+        if (this._conn) {
+            this._conn.close();
+            this._conn = undefined;
+            console.log("WebSocket closed");
+        }
+    
+        // 清除心跳定时器
+        if (this._heartbeatTimer) {
+            clearInterval(this._heartbeatTimer);
+            this._heartbeatTimer = undefined;
+            console.log("Heartbeat timer cleared");
+        }
     }
 
     public isInit():boolean{
@@ -155,10 +170,10 @@ export class ImClient{
         return uuid();
     }
 
-    private updateMessageStatus(conversationId:string,messageId: string,status: MessageStatusEnum) {
-        // 通知前端更新消息状态
+    private updateMessage(conversationId:string,messageId: string,status: MessageStatusEnum,messageKey?:number) {
+        // 通知前端更新消息状态以及消息key
         if (this.messageAckCallback) {
-            this.messageAckCallback(conversationId,messageId,status);
+            this.messageAckCallback(conversationId,messageId,status,messageKey);
         }
     }
 
@@ -172,7 +187,7 @@ export class ImClient{
         //消息重试次数大于最大次数,标记为消息发送失败
         if (pending.retries >= this.MAX_RETRIES) {
             this.pendingMessages.delete(messageId);
-            this.updateMessageStatus(pending.conversationId,messageId, MessageStatusEnum.failed);
+            this.updateMessage(pending.conversationId,messageId, MessageStatusEnum.failed,undefined);
             return;
         }
         pending.retries++;
@@ -251,17 +266,18 @@ export class ImClient{
                 const pending = this.pendingMessages.get(messageId);
                 if (pending) {
                     pending.ackStatus.serverAck = true;
-                    this.checkFinalStatus(messageId, pending);
+                    this.checkFinalStatus(messageId, pending,undefined);
                 }
             }else if(data.cmd === MessageCommand.MESSAGE_RECEIVE_ACK){
-                Logger.info("收到receiverAck: ",data); 
+                Logger.info("收到receiveAck: ",data); 
                 const content = data.body.content;
                 const messageId = content.messageId;
+                const messageKey = content.messageKey;
                 const pending = this.pendingMessages.get(messageId);
                 if (pending) {
                     pending.ackStatus.receiverAck = true;
                     pending.ackStatus.serverSend = content.serverSend;
-                    this.checkFinalStatus(messageId, pending);
+                    this.checkFinalStatus(messageId, pending,messageKey);
                 }
             }else if(data.cmd === MessageCommand.SINGLE_MESSAGE){
                 Logger.info("收到单聊消息:",data);
@@ -306,17 +322,17 @@ export class ImClient{
     }
 
 
-    private checkFinalStatus(messageId: string, pending: any) {
+    private checkFinalStatus(messageId: string, pending: any,messageKey?:number) {
         const { serverAck, receiverAck, serverSend } = pending.ackStatus;
-        
         // 最终状态判断
         if (serverAck && (receiverAck || serverSend)) {
             clearTimeout(pending.timer);
             this.pendingMessages.delete(messageId);
-            this.updateMessageStatus(
+            this.updateMessage(
                 pending.conversationId, 
                 messageId, 
-                serverSend ? MessageStatusEnum.sent : MessageStatusEnum.delivered
+                serverSend ? MessageStatusEnum.sent : MessageStatusEnum.delivered,
+                messageKey
             );
         }
     }

@@ -12,6 +12,7 @@ export class ImTimeCalibrator {
         this.syncInterval = syncInterval;
         this.startAutoSync();                           // 创建实例后自动启动定时器
     }
+
     /** 启动自动同步 */
     startAutoSync(): void {
         if (this.syncTimer) return;                     // 避免重复启动
