@@ -13,6 +13,9 @@ import { IFriendInfo } from '../interfaces/IFriendInfo';
 import { IUserSequence } from '../interfaces/IUserSequence';
 import Logger from '../log/logger';
 import { GetFriendListResp as FriendListResp } from '../interfaces/GetFriendListResp';
+import { ISyncResponse } from '../interfaces/ISyncResponse';
+import { IOfflineMsgContent } from '../interfaces/message/IOfflineMsgContent';
+import { IFriendGroup } from '../interfaces/IFriendGroup';
 
 
 let isRefreshing: boolean = false;
@@ -227,9 +230,9 @@ export class IMHttpApi {
         return new BaseResponse<any>(response.data.code, response.data.message, response.data.data);
     }
 
-    async getUserSequence():Promise<BaseResponse<IUserSequence>>{
-        const response = await this.axiosInstance.get<IAPIResponse<IUserSequence>>('/v1/user/sequence');
-        return new BaseResponse<IUserSequence>(response.data.code, response.data.message, response.data.data);
+    async getUserBaseSequence():Promise<BaseResponse<IUserBaseSequence>>{
+        const response = await this.axiosInstance.get<IAPIResponse<IUserBaseSequence>>('/v1/user/base-sequence');
+        return new BaseResponse<IUserBaseSequence>(response.data.code, response.data.message, response.data.data);
     }
 
     async getBaseSequence():Promise<BaseResponse<IUserBaseSequence>>{
@@ -257,4 +260,28 @@ export class IMHttpApi {
         });
         return new BaseResponse<FriendListResp>(response.data.code,response.data.message, response.data.data);
     }
+
+    async syncOfflineMessage():Promise<BaseResponse<ISyncResponse<IOfflineMsgContent>>>{
+        const response = await this.axiosInstance.get<IAPIResponse<ISyncResponse<IOfflineMsgContent>>>('/v1/message/offline-sync');
+        return new BaseResponse<ISyncResponse<IOfflineMsgContent>>(response.data.code,response.data.message, response.data.data);
+    }
+
+    async syncConversationList(lastSequence:number,limit: number): Promise<BaseResponse<ISyncResponse<IConversation>>>{
+        const response = await this.axiosInstance.post<IAPIResponse<ISyncResponse<IConversation>>>('/v1/conversation/list/sync',{
+            lastSequence: lastSequence,
+            limit: limit
+        });
+        return new BaseResponse<ISyncResponse<IConversation>>(response.data.code,response.data.message, response.data.data);
+    }
+
+    async getFriendGroupSequence():Promise<BaseResponse<number>>{
+        const response = await this.axiosInstance.get<IAPIResponse<number>>("/v1/friend/group/sequence");
+        return new BaseResponse(response.data.code,response.data.message,response.data.data);
+    }
+
+    async getFriendGroupListWithId(){
+        const response = await this.axiosInstance.get<IAPIResponse<IFriendGroup>>("/v1/friend/group/list-with-friend-id");
+        return new BaseResponse(response.data.code,response.data.message,response.data.data);
+    }
+
 }

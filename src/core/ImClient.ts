@@ -243,6 +243,30 @@ export class ImClient{
         } as ISendMessageResult;
     }
 
+    public markMessageRead(conversationSeq:number,toId:string,convType:number) {
+        if(!this._conn){
+            this.reconnect();
+            return;
+        }
+        Logger.info("标记消息已读:");
+        const msgData = {
+            cmd: MessageCommand.MESSAGE_READ,
+            version: this.version,
+            clientType: this.clientType,
+            messageType: MessageTypeEnum.text,
+            appId: this.appId,
+            imei: this.imei,
+            messageBody: {
+                fromId: this.userId,
+                toId: toId,
+                sequence: conversationSeq,
+                type: convType
+            }
+        };
+        const message = MessageEncoder.encode(msgData)
+        this._conn.send(message);
+    }
+
     // 新增ACK超时处理
     private handleAckTimeout(messageId: string) {
         const pending = this.pendingMessages.get(messageId);
