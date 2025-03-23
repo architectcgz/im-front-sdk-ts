@@ -1,5 +1,5 @@
 export interface IFriendGroup{
-    groupId:number,
+    groupId:string,
     groupName: string,
     memberIdList: string[],
     sequence: number

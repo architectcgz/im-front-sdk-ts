@@ -9,13 +9,13 @@ import { IUserBaseSequence } from '../interfaces/IUserBaseSequence';
 import { ILogoutService } from '../interfaces/ILogoutService';
 import { IIMServerAddr } from '../interfaces/IIMServerAddr';
 import { ITimeSyncResponse } from '../interfaces/ITimeSyncResponse';
-import { IFriendInfo } from '../interfaces/IFriendInfo';
-import { IUserSequence } from '../interfaces/IUserSequence';
 import Logger from '../log/logger';
 import { GetFriendListResp as FriendListResp } from '../interfaces/GetFriendListResp';
 import { ISyncResponse } from '../interfaces/ISyncResponse';
 import { IOfflineMsgContent } from '../interfaces/message/IOfflineMsgContent';
 import { IFriendGroup } from '../interfaces/IFriendGroup';
+import { IFriendStatus } from '../interfaces/IFriendStatus';
+import { IFriend } from '../interfaces/IFriend';
 
 
 let isRefreshing: boolean = false;
@@ -23,6 +23,7 @@ let refreshSubscribers: ((token: string) => void)[] = [];
 let isUserInfoLoading: boolean = false;
 
 export class IMHttpApi {
+
     private axiosInstance: AxiosInstance;
     private baseUrl: string;
     private tokenStorage: ITokenStorage;
@@ -247,15 +248,16 @@ export class IMHttpApi {
         return new BaseResponse<ITimeSyncResponse>(response.data.code,response.data.message, response.data.data);
     }
 
-    async getFriendInfo():Promise<BaseResponse<IFriendInfo>>{
-        const response = await this.axiosInstance.get<IAPIResponse<IFriendInfo>>('/v1/friend/info');
-        return new BaseResponse<IFriendInfo>(response.data.code,response.data.message, response.data.data);
+    async getFriendInfo():Promise<BaseResponse<IFriend>>{
+        const response = await this.axiosInstance.get<IAPIResponse<IFriend>>('/v1/friend/info');
+        return new BaseResponse<IFriend>(response.data.code,response.data.message, response.data.data);
     }
 
-    async getFriendList(cursor:number):Promise<BaseResponse<FriendListResp>> {
+    async getFriendList(cursor?:number,limit?:number):Promise<BaseResponse<FriendListResp>> {
         const response = await this.axiosInstance.get<IAPIResponse<FriendListResp>>("/v1/friend/list",{
             params:{
-                cursor: cursor
+                cursor: cursor,
+                limit: limit
             }
         });
         return new BaseResponse<FriendListResp>(response.data.code,response.data.message, response.data.data);
@@ -280,8 +282,11 @@ export class IMHttpApi {
     }
 
     async getFriendGroupListWithId(){
-        const response = await this.axiosInstance.get<IAPIResponse<IFriendGroup>>("/v1/friend/group/list-with-friend-id");
+        const response = await this.axiosInstance.get<IAPIResponse<IFriendGroup[]>>("/v1/friend/group/list-with-friend-id");
         return new BaseResponse(response.data.code,response.data.message,response.data.data);
     }
-
+    async getFriendOnlineStatus() {
+        const response = await this.axiosInstance.get<IAPIResponse<IFriendStatus[]>>("/v1/friend/online-status");
+        return new BaseResponse<IFriendStatus[]>(response.data.code,response.data.message,response.data.data);
+    }
 }

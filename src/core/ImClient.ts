@@ -5,15 +5,15 @@ import { IListener } from '../interfaces/IListener';
 import { MessageEncoder } from "../codec/messageEncoder";
 import { MessageTypeEnum } from "../common/messageTypeEnum";
 import { MessageDecoder } from "../codec/messageDecoder";
-import { MessageBuilder, MessagePack } from "../pack/messagePack";
 import MessageStatusEnum from "../common/messageStatusEnum";
 import { MessageAckCallback } from '../callback/messageAckCallback';
 import { v4 as uuid } from 'uuid';
 import { IMessage} from "../interfaces/IMessage";
 import { SingleMessageCallback } from "../callback/singleMessageCallback";
-import { IMessageHeader } from "../interfaces/message/IMessageHeader";
 import { ImTimeCalibrator } from './ImTimeCalibrator';
 import { ISendMessageResult } from "../interfaces/ISendMessageResult";
+import { FriendStatusChangeCallback } from "../callback/FriendStatusChangeCallback";
+import { IFriendStatusChange } from "../interfaces/IFriendStatusChange";
 
 export enum State{
     INIT,
@@ -61,7 +61,8 @@ export class ImClient{
     private readonly RETRY_TIMEOUT = 5000;
 
     private messageAckCallback?:MessageAckCallback;//信息确认回调
-    private singleMessageCallback?: (message: IMessage) => void; 
+    private singleMessageCallback?: SingleMessageCallback;//单聊消息回调 
+    private friendStatusChangeCallback?:FriendStatusChangeCallback;//好友状态改变回调
 
     constructor(private imTimeCalibrator: ImTimeCalibrator){
     
@@ -88,7 +89,8 @@ export class ImClient{
 
     public async init(wsUrl: string, httpUrl: string, userId: string, token: string, appId: number,imei:string,
         messageAckCallback:MessageAckCallback,
-        singleMessageCallback: SingleMessageCallback
+        singleMessageCallback: SingleMessageCallback,
+        friendStatusChangeCallback:FriendStatusChangeCallback
     ) {
         this.wsUrl = wsUrl;
         this.httpUrl = httpUrl;
@@ -99,6 +101,7 @@ export class ImClient{
         this.imeiLen = this.imei.length;
         this.messageAckCallback = messageAckCallback;
         this.singleMessageCallback = singleMessageCallback;
+        this.friendStatusChangeCallback = friendStatusChangeCallback;
         await this.connectWebSocket();
     }
 
@@ -285,7 +288,7 @@ export class ImClient{
             if (data.cmd === SystemCommand.LOGIN_ACK) {
                 Logger.info("WebSocket登录成功");
             }else if(data.cmd === MessageCommand.MESSAGE_ACK){
-                Logger.info("收到消息ack:",data);
+                Logger.info("收到服务器消息ack:",data);
                 const messageId = data.body.content.messageId;
                 const pending = this.pendingMessages.get(messageId);
                 if (pending) {
@@ -329,13 +332,28 @@ export class ImClient{
                         toId: data.body.content.fromId,
                         messageKey: data.body.content.messageKey,
                         messageId: data.body.content.messageId,
-                        messageSequence: data.body.content.messageSequence
+                        messageSequence: data.body.content.messageSequence,
+                        imei:data.body.content.imei,
+                        clientType: data.body.content.clientType,
                     }
                 }
                 Logger.info("向服务器回receiveAck: ",msgData)
                 const message = MessageEncoder.encode(msgData)
                 
                 this._conn?.send(message)
+            }else if(data.cmd === MessageCommand.USER_ONLINE_STATUS_UPDATE_NOTIFY){
+                console.log("收到好友在线状态变更通知,",data)
+                //在线状态变化的好友id
+                const friendId = data.body.content.userId;
+                //回调,通知好友列表变更状态
+                if(this.friendStatusChangeCallback){
+                    this.friendStatusChangeCallback(friendId,{
+                        appId: data.body.content.appId,
+                        id:data.body.content.userId,
+                        status: data.body.content.status,
+                        clientsStatusMap:data.body.content.clientsStatusMap
+                    }as IFriendStatusChange);
+                }
             }
             else{
                 Logger.info("收到消息:", data);
