@@ -4,14 +4,14 @@ import { ImSdk } from "./core/ImSdk";
 import { ImTimeCalibrator } from "./core/ImTimeCalibrator";
 import { ILogoutService } from "./interfaces/ILogoutService";
 import { ISdkConfig } from "./interfaces/ISdkConfig";
-import { IUserInfoStorage, ITokenStorage, ISequenceStorage } from "./interfaces/IStorage";
+import { IUserInfoStorage, IUserAuthStorage} from "./interfaces/storage/IStorage";
 
 export class ImSdkBuilder {
     private config?: ISdkConfig;
     private logoutService?: ILogoutService;
     private userInfoStorage?: IUserInfoStorage;
-    private tokenStorage?: ITokenStorage;
-    private userSequenceStorage?: ISequenceStorage;
+    private tokenStorage?: IUserAuthStorage;
+
 
     setBaseConfig(config: ISdkConfig): this {
         this.config = config;
@@ -25,17 +25,15 @@ export class ImSdkBuilder {
 
     setStorages(storages: {
         userInfo: IUserInfoStorage;
-        token: ITokenStorage;
-        sequence: ISequenceStorage;
+        token: IUserAuthStorage;
     }): this {
         this.userInfoStorage = storages.userInfo;
         this.tokenStorage = storages.token;
-        this.userSequenceStorage = storages.sequence;
         return this;
     }
 
     build(): ImSdk {
-        if (!this.config || !this.logoutService || !this.userInfoStorage || !this.tokenStorage || !this.userSequenceStorage) {
+        if (!this.config || !this.logoutService || !this.userInfoStorage || !this.tokenStorage ) {
             throw new Error('Missing required dependencies for SDK initialization');
         }
 
@@ -56,7 +54,6 @@ export class ImSdkBuilder {
             imTimeCalibrator,
             this.userInfoStorage,
             this.tokenStorage,
-            this.userSequenceStorage,
             this.logoutService
         );
     }

@@ -4,5 +4,6 @@ export interface IMessage{
     type: number,
     content:string,
     senderId:string,
-    sendTime:number
+    sendTime:number,
+    sequence:number
 }

@@ -1,0 +1,1 @@
+export type messageUserAckCallback = (msg: any) => void

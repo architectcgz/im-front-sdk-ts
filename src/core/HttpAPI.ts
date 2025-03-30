@@ -4,8 +4,8 @@ import { IRefreshTokenResponse } from '../interfaces/IRefreshTokenResponse';
 import { IUserInfo } from '../interfaces/IUserInfo';
 import { IAPIResponse } from '../interfaces/IAPIResponse';
 import { BaseResponse } from '../model/dto/baseResponse';
-import { ITokenStorage, IUserInfoStorage } from '../interfaces/IStorage';
-import { IUserBaseSequence } from '../interfaces/IUserBaseSequence';
+import { IUserAuthStorage, IUserInfoStorage } from '../interfaces/storage/IStorage';
+import { IUserSequence } from '../interfaces/IUserSequence';
 import { ILogoutService } from '../interfaces/ILogoutService';
 import { IIMServerAddr } from '../interfaces/IIMServerAddr';
 import { ITimeSyncResponse } from '../interfaces/ITimeSyncResponse';
@@ -16,6 +16,7 @@ import { IOfflineMsgContent } from '../interfaces/message/IOfflineMsgContent';
 import { IFriendGroup } from '../interfaces/IFriendGroup';
 import { IFriendStatus } from '../interfaces/IFriendStatus';
 import { IFriend } from '../interfaces/IFriend';
+import { ConversationTypeEnum } from '../common/ConversationTypeEnum';
 
 
 let isRefreshing: boolean = false;
@@ -26,7 +27,7 @@ export class IMHttpApi {
 
     private axiosInstance: AxiosInstance;
     private baseUrl: string;
-    private tokenStorage: ITokenStorage;
+    private tokenStorage: IUserAuthStorage;
     private userId: string|null;
     private userInfoStorage: IUserInfoStorage
     private accessToken: string | null|undefined;
@@ -34,7 +35,7 @@ export class IMHttpApi {
     private logoutService : ILogoutService;
 
     constructor(baseUrl: string, appId: number,clientType: number, 
-        deviceId: string, tokenStorage: ITokenStorage,userInfoStorage: IUserInfoStorage,iLogoutService: ILogoutService){
+        deviceId: string, tokenStorage: IUserAuthStorage,userInfoStorage: IUserInfoStorage,iLogoutService: ILogoutService){
         this.baseUrl = baseUrl;
         this.tokenStorage = tokenStorage;
         this.userInfoStorage = userInfoStorage;
@@ -231,14 +232,9 @@ export class IMHttpApi {
         return new BaseResponse<any>(response.data.code, response.data.message, response.data.data);
     }
 
-    async getUserBaseSequence():Promise<BaseResponse<IUserBaseSequence>>{
-        const response = await this.axiosInstance.get<IAPIResponse<IUserBaseSequence>>('/v1/user/base-sequence');
-        return new BaseResponse<IUserBaseSequence>(response.data.code, response.data.message, response.data.data);
-    }
-
-    async getBaseSequence():Promise<BaseResponse<IUserBaseSequence>>{
-        const response = await this.axiosInstance.get<IAPIResponse<any>>('/v1/user/base-sequence');
-        return new BaseResponse<IUserBaseSequence>(response.data.code,"", response.data.data);
+    async getUserSequence():Promise<BaseResponse<IUserSequence>>{
+        const response = await this.axiosInstance.get<IAPIResponse<IUserSequence>>('/v1/user/sequence');
+        return new BaseResponse<IUserSequence>(response.data.code, response.data.message, response.data.data);
     }
 
     async syncTime():Promise<BaseResponse<ITimeSyncResponse>>{
@@ -289,4 +285,23 @@ export class IMHttpApi {
         const response = await this.axiosInstance.get<IAPIResponse<IFriendStatus[]>>("/v1/friend/online-status");
         return new BaseResponse<IFriendStatus[]>(response.data.code,response.data.message,response.data.data);
     }
+
+    async createConversation(toId:string,type:ConversationTypeEnum){
+        const response = await this.axiosInstance.post<IAPIResponse<string>>("/v1/conversation/create",{
+            toId:toId,
+            type:type
+        });
+        return new BaseResponse<string>(response.data.code,response.data.message,response.data.data)
+    }
+
+    async updateConversation(toId:string,isMute?:number,isTop?:number):Promise<BaseResponse<number>>{
+        const response = await this.axiosInstance.post<IAPIResponse<number>>('/v1/conversation/update',{
+            fromId: this.userId,
+            toId: toId,
+            isTop: isTop,
+            isMute: isMute
+        });
+        return new BaseResponse<number>(response.data.code,response.data.message,response.data.data);
+    }
+
 }

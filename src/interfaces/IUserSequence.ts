@@ -1,10 +1,8 @@
-export interface IUserSequence{
+export interface IUserSequence {
     userInfoSequence: number;
     conversationSequence: number;
-    friendshipSequence: number;
+    friendSequence: number;
+    friendGroupSequence:number;
     friendRequestSequence: number;
     groupSequence: number;
-    friendshipGroupSequence: number;
-    messageSequence: number;
-    groupMessageSequence: number;
 }

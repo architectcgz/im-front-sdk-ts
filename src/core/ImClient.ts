@@ -14,6 +14,7 @@ import { ImTimeCalibrator } from './ImTimeCalibrator';
 import { ISendMessageResult } from "../interfaces/ISendMessageResult";
 import { FriendStatusChangeCallback } from "../callback/FriendStatusChangeCallback";
 import { IFriendStatusChange } from "../interfaces/IFriendStatusChange";
+import { ServerMessage } from "../typedef/ServerMessage";
 
 export enum State{
     INIT,
@@ -173,10 +174,16 @@ export class ImClient{
         return uuid();
     }
 
-    private updateMessage(conversationId:string,messageId: string,status: MessageStatusEnum,messageKey?:number) {
+    private updateMessage(conversationId:string,
+        messageId: string,
+        status: MessageStatusEnum,
+        messageKey?:number,
+        messageSequence?:number,
+        errorMsg?:string
+    ) {
         // 通知前端更新消息状态以及消息key
         if (this.messageAckCallback) {
-            this.messageAckCallback(conversationId,messageId,status,messageKey);
+            this.messageAckCallback(conversationId,messageId,status,messageKey,messageSequence);
         }
     }
 
@@ -190,7 +197,7 @@ export class ImClient{
         //消息重试次数大于最大次数,标记为消息发送失败
         if (pending.retries >= this.MAX_RETRIES) {
             this.pendingMessages.delete(messageId);
-            this.updateMessage(pending.conversationId,messageId, MessageStatusEnum.failed,undefined);
+            this.updateMessage(pending.conversationId,messageId, MessageStatusEnum.failed,undefined,undefined);
             return;
         }
         pending.retries++;
@@ -200,11 +207,11 @@ export class ImClient{
     }
     
 
-    public sendMessage(messageId:string,toId:string,content:string):ISendMessageResult{
+    public sendMessage(messageId:string,toId:string,content:string,type:MessageTypeEnum):ISendMessageResult{
         if(!this._conn) {
             this.reconnect();
             return {
-                sendTime:Number.MAX_VALUE
+                sendTime:Number.MAX_VALUE,
             };
         }
         const sendTime = this.imTimeCalibrator.now;
@@ -216,6 +223,7 @@ export class ImClient{
             appId: this.appId,
             imei: this.imei,
             messageBody: {
+                messageType: type,
                 fromId: this.userId,
                 toId: toId,
                 messageId: messageId,
@@ -246,12 +254,12 @@ export class ImClient{
         } as ISendMessageResult;
     }
 
-    public markMessageRead(conversationSeq:number,toId:string,convType:number) {
+    public async markMessageRead(lastSeq:number,toId:string,convType:number) {
         if(!this._conn){
             this.reconnect();
             return;
         }
-        Logger.info("标记消息已读:");
+        Logger.info(`标记消息已读, lastSeq:${lastSeq},toId: ${toId} convType: ${convType}`);
         const msgData = {
             cmd: MessageCommand.MESSAGE_READ,
             version: this.version,
@@ -262,8 +270,8 @@ export class ImClient{
             messageBody: {
                 fromId: this.userId,
                 toId: toId,
-                sequence: conversationSeq,
-                type: convType
+                lastSequence: lastSeq,
+                conversationType: convType
             }
         };
         const message = MessageEncoder.encode(msgData)
@@ -284,39 +292,62 @@ export class ImClient{
 
     private async handleMessage(message: MessageEvent) {
         try {
-            const data = await MessageDecoder.decode(message.data);
+            const data = await MessageDecoder.decode(message.data) as ServerMessage;
+            Logger.info("收到消息:", data);
             if (data.cmd === SystemCommand.LOGIN_ACK) {
                 Logger.info("WebSocket登录成功");
             }else if(data.cmd === MessageCommand.MESSAGE_ACK){
                 Logger.info("收到服务器消息ack:",data);
-                const messageId = data.body.content.messageId;
+                const body = data.body;
+                const messageId = body.messageId;
                 const pending = this.pendingMessages.get(messageId);
-                if (pending) {
-                    pending.ackStatus.serverAck = true;
-                    this.checkFinalStatus(messageId, pending,undefined);
+                const messageKey = body.messageKey;
+                const messageSequence = body.messageSequence;
+                if(body.success){
+                    if (pending) {
+                        pending.ackStatus.serverAck = true;
+                        this.checkFinalStatus(messageId, pending,messageKey,messageSequence);
+                    }
+                }else{
+                    //消息发送失败情况
+                    if(pending){
+                        const errorMsg = body.errorMsg|| "消息发送失败";
+                        clearTimeout(pending.timer);
+                        this.pendingMessages.delete(messageId);
+                        this.updateMessage(
+                            pending.conversationId,messageId,
+                            MessageStatusEnum.failed,
+                            messageKey,
+                            messageSequence,
+                            errorMsg
+                        );
+                    }
                 }
+
             }else if(data.cmd === MessageCommand.MESSAGE_RECEIVE_ACK){
                 Logger.info("收到receiveAck: ",data); 
-                const content = data.body.content;
+                const content = data.body;
                 const messageId = content.messageId;
                 const messageKey = content.messageKey;
+                const messageSequence = content.sequence;
                 const pending = this.pendingMessages.get(messageId);
                 if (pending) {
                     pending.ackStatus.receiverAck = true;
                     pending.ackStatus.serverSend = content.serverSend;
-                    this.checkFinalStatus(messageId, pending,messageKey);
+                    this.checkFinalStatus(messageId, pending,messageKey,messageSequence);
                 }
             }else if(data.cmd === MessageCommand.SINGLE_MESSAGE){
                 Logger.info("收到单聊消息:",data);
                 //回调
                 if(this.singleMessageCallback){
                     this.singleMessageCallback({
-                        senderId: data.body.content.fromId,
-                        key:data.body.content.messageKey,
-                        id: data.body.content.messageId,
-                        type: data.body.content.messageType,
-                        content:data.body.content.messageBody,
-                        sendTime:data.body.content.sendTime
+                        senderId: data.body.fromId,
+                        key:data.body.messageKey,
+                        id: data.body.messageId,
+                        type: data.body.messageType,
+                        content:data.body.messageBody,
+                        sendTime:data.body.sendTime,
+                        sequence:data.body.messageSequence,
                     }as IMessage);
                 }
                 //向服务器回ack
@@ -329,12 +360,12 @@ export class ImClient{
                     imei: this.imei,
                     messageBody: {
                         fromId: this.userId, 
-                        toId: data.body.content.fromId,
-                        messageKey: data.body.content.messageKey,
-                        messageId: data.body.content.messageId,
-                        messageSequence: data.body.content.messageSequence,
-                        imei:data.body.content.imei,
-                        clientType: data.body.content.clientType,
+                        toId: data.body.fromId,
+                        messageKey: data.body.messageKey,
+                        messageId: data.body.messageId,
+                        messageSequence: data.body.messageSequence,
+                        toImei:data.body.imei,//ack接收方的imei
+                        toClientType: data.body.clientType,//ack接收方的clientType
                     }
                 }
                 Logger.info("向服务器回receiveAck: ",msgData)
@@ -342,21 +373,21 @@ export class ImClient{
                 
                 this._conn?.send(message)
             }else if(data.cmd === MessageCommand.USER_ONLINE_STATUS_UPDATE_NOTIFY){
-                console.log("收到好友在线状态变更通知,",data)
                 //在线状态变化的好友id
-                const friendId = data.body.content.userId;
+                const body = data.body;
+                console.log("收到好友在线状态变更通知,",data,"消息体:",body)
+                const friendId = data.body.userId;
                 //回调,通知好友列表变更状态
                 if(this.friendStatusChangeCallback){
                     this.friendStatusChangeCallback(friendId,{
-                        appId: data.body.content.appId,
-                        id:data.body.content.userId,
-                        status: data.body.content.status,
-                        clientsStatusMap:data.body.content.clientsStatusMap
+                        appId: body.appId,
+                        id:body.userId,
+                        status: body.userClientsStatus,
                     }as IFriendStatusChange);
                 }
             }
             else{
-                Logger.info("收到消息:", data);
+                Logger.info("暂时不能处理此种消息")
             }
         } catch (error) {
             Logger.error("消息处理失败:", error);
@@ -364,7 +395,13 @@ export class ImClient{
     }
 
 
-    private checkFinalStatus(messageId: string, pending: any,messageKey?:number) {
+    private checkFinalStatus(
+        messageId: string,
+        pending: any,
+        messageKey?:number,
+        messageSequence?:number,
+        errorMsg?:string
+    ) {
         const { serverAck, receiverAck, serverSend } = pending.ackStatus;
         // 最终状态判断
         if (serverAck && (receiverAck || serverSend)) {
@@ -374,7 +411,8 @@ export class ImClient{
                 pending.conversationId, 
                 messageId, 
                 serverSend ? MessageStatusEnum.sent : MessageStatusEnum.delivered,
-                messageKey
+                messageKey,
+                messageSequence
             );
         }
     }

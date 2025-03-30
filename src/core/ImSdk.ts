@@ -1,5 +1,5 @@
 import { ILogoutService } from "../interfaces/ILogoutService";
-import { ITokenStorage, IUserInfoStorage, ISequenceStorage } from "../interfaces/IStorage";
+import { IUserAuthStorage, IUserInfoStorage} from "../interfaces/storage/IStorage";
 import { IMHttpApi } from "./HttpAPI";
 import { ImClient } from "./ImClient";
 import { ImTimeCalibrator } from "./ImTimeCalibrator";
@@ -11,8 +11,7 @@ export class ImSdk {
     public readonly imClient: ImClient,
     public readonly timeCalibrator: ImTimeCalibrator,
     public readonly userInfoStorage: IUserInfoStorage,
-    public readonly tokenStorage: ITokenStorage,
-    public readonly userSequenceStorage: ISequenceStorage,
+    public readonly tokenStorage: IUserAuthStorage,
     public readonly logoutService: ILogoutService,
   ) {}
 }
